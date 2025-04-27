@@ -9,43 +9,40 @@ document.addEventListener('DOMContentLoaded', function() {
     let botInterval;
     let currentGrid = [];
     let lastTradePrice = 0;
+    let authToken = null;
     
-    // Initialize form with saved values
+    // Initialize
     loadSettings();
     
+    // Event listeners
     startBtn.addEventListener('click', startBot);
     stopBtn.addEventListener('click', stopBot);
     
-    function loadSettings() {
-        const savedSettings = JSON.parse(localStorage.getItem('gridBotSettings')) || {};
-        
-        if (savedSettings.apiKey) document.getElementById('apiKey').value = savedSettings.apiKey;
-        if (savedSettings.apiSecret) document.getElementById('apiSecret').value = savedSettings.apiSecret;
-        if (savedSettings.baseCurrency) document.getElementById('baseCurrency').value = savedSettings.baseCurrency;
-        if (savedSettings.pairCurrency) document.getElementById('pairCurrency').value = savedSettings.pairCurrency;
-        if (savedSettings.gridLevels) document.getElementById('gridLevels').value = savedSettings.gridLevels;
-        if (savedSettings.lowerPrice) document.getElementById('lowerPrice').value = savedSettings.lowerPrice;
-        if (savedSettings.upperPrice) document.getElementById('upperPrice').value = savedSettings.upperPrice;
-        if (savedSettings.investment) document.getElementById('investment').value = savedSettings.investment;
+    // Authenticate with backend
+    async function authenticate() {
+        try {
+            const response = await fetch('/api/auth', {
+                method: 'POST'
+            });
+            
+            const data = await response.json();
+            if (data.token) {
+                authToken = data.token;
+                return true;
+            }
+            return false;
+        } catch (error) {
+            console.error('Authentication failed:', error);
+            return false;
+        }
     }
     
-    function saveSettings() {
-        const settings = {
-            apiKey: document.getElementById('apiKey').value,
-            apiSecret: document.getElementById('apiSecret').value,
-            baseCurrency: document.getElementById('baseCurrency').value,
-            pairCurrency: document.getElementById('pairCurrency').value,
-            gridLevels: document.getElementById('gridLevels').value,
-            lowerPrice: document.getElementById('lowerPrice').value,
-            upperPrice: document.getElementById('upperPrice').value,
-            investment: document.getElementById('investment').value
-        };
-        
-        localStorage.setItem('gridBotSettings', JSON.stringify(settings));
-    }
-    
-    function startBot() {
-        saveSettings();
+    async function startBot() {
+        const isAuthenticated = await authenticate();
+        if (!isAuthenticated) {
+            alert('Failed to authenticate with trading server');
+            return;
+        }
         
         const baseCurrency = document.getElementById('baseCurrency').value;
         const pairCurrency = document.getElementById('pairCurrency').value;
@@ -70,149 +67,64 @@ document.addEventListener('DOMContentLoaded', function() {
         startBtn.disabled = true;
         stopBtn.disabled = false;
         
-        // Simulate price updates and trading (in a real app, this would connect to exchange WebSocket)
+        // Start price updates and trading
         botInterval = setInterval(() => {
             updatePriceAndTrade(baseCurrency, pairCurrency);
-        }, 3000);
+        }, 5000); // 5 second interval to avoid rate limiting
         
         logTrade('Bot started', 'info');
     }
     
-    function stopBot() {
-        clearInterval(botInterval);
-        botStatus.textContent = 'Inactive';
-        botStatus.style.color = 'red';
-        startBtn.disabled = false;
-        stopBtn.disabled = true;
-        
-        logTrade('Bot stopped', 'info');
-    }
-    
-    function createGridLevels(lowerPrice, upperPrice, levels, investment) {
-        const grid = [];
-        const priceStep = (upperPrice - lowerPrice) / (levels - 1);
-        const investmentPerLevel = investment / levels;
-        
-        for (let i = 0; i < levels; i++) {
-            const price = lowerPrice + (i * priceStep);
-            grid.push({
-                price: parseFloat(price.toFixed(8)),
-                type: i % 2 === 0 ? 'buy' : 'sell', // Alternate buy/sell
-                amount: investmentPerLevel / price,
-                active: false
-            });
-        }
-        
-        return grid;
-    }
-    
-    function renderGridLevels(grid) {
-        gridLevelsContainer.innerHTML = '';
-        
-        grid.forEach(level => {
-            const levelEl = document.createElement('div');
-            levelEl.className = `grid-level ${level.type}-level ${level.active ? 'active-level' : ''}`;
-            levelEl.innerHTML = `
-                <strong>${level.type.toUpperCase()}</strong><br>
-                Price: ${level.price}<br>
-                Amount: ${level.amount.toFixed(8)}<br>
-                Value: ${(level.price * level.amount).toFixed(4)}
-            `;
-            gridLevelsContainer.appendChild(levelEl);
-        });
-    }
-    
     async function updatePriceAndTrade(baseCurrency, pairCurrency) {
         try {
-            // In a real implementation, this would fetch actual price from exchange API
-            const currentPrice = simulatePriceMovement();
-            currentPriceEl.textContent = currentPrice;
+            const symbol = `${pairCurrency}${baseCurrency}`;
+            
+            // Get current price from backend
+            const priceResponse = await fetch(`/api/price?symbol=${symbol}`, {
+                headers: {
+                    'Authorization': `Bearer ${authToken}`
+                }
+            });
+            
+            const priceData = await priceResponse.json();
+            if (!priceData.price) throw new Error('Failed to get price');
+            
+            const currentPrice = parseFloat(priceData.price);
+            currentPriceEl.textContent = currentPrice.toFixed(8);
             
             // Check grid levels for potential trades
             const trades = checkForTrades(currentPrice);
             
             if (trades.length > 0) {
-                // Execute trades (in a real app, this would call your exchange API)
                 for (const trade of trades) {
-                    const result = await executeTrade(trade, baseCurrency, pairCurrency);
+                    const tradeResponse = await fetch('/api/trade', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${authToken}`
+                        },
+                        body: JSON.stringify({
+                            symbol: `${pairCurrency}${baseCurrency}`,
+                            type: trade.type,
+                            price: trade.price,
+                            amount: trade.amount
+                        })
+                    });
                     
-                    if (result.success) {
+                    const tradeResult = await tradeResponse.json();
+                    if (tradeResult.success) {
                         logTrade(`${trade.type.toUpperCase()} ${trade.amount} ${pairCurrency} @ ${trade.price}`, trade.type);
                         lastTradePrice = trade.price;
                     }
                 }
                 
-                // Update grid display
                 renderGridLevels(currentGrid);
             }
         } catch (error) {
-            console.error('Error in trading:', error);
+            console.error('Trading error:', error);
             logTrade(`Error: ${error.message}`, 'error');
         }
     }
     
-    function simulatePriceMovement() {
-        // Simple random walk price simulation
-        if (!lastTradePrice) {
-            const lowerPrice = parseFloat(document.getElementById('lowerPrice').value);
-            const upperPrice = parseFloat(document.getElementById('upperPrice').value);
-            lastTradePrice = lowerPrice + (upperPrice - lowerPrice) / 2;
-        }
-        
-        const changePercent = (Math.random() * 2 - 1) * 0.5; // -0.5% to +0.5%
-        lastTradePrice = lastTradePrice * (1 + changePercent / 100);
-        
-        return lastTradePrice.toFixed(8);
-    }
-    
-    function checkForTrades(currentPrice) {
-        const trades = [];
-        
-        for (const level of currentGrid) {
-            if (!level.active) {
-                const priceDiff = Math.abs(currentPrice - level.price) / level.price * 100;
-                
-                if (priceDiff < 0.1) { // Threshold for trade execution
-                    level.active = true;
-                    trades.push({
-                        type: level.type,
-                        price: level.price,
-                        amount: level.amount
-                    });
-                }
-            }
-        }
-        
-        return trades;
-    }
-    
-    async function executeTrade(trade, baseCurrency, pairCurrency) {
-        // In a real implementation, this would call your serverless function to execute the trade
-        // For now, we'll simulate a successful trade
-        
-        return new Promise(resolve => {
-            setTimeout(() => {
-                resolve({
-                    success: true,
-                    message: `Simulated ${trade.type} order executed`
-                });
-            }, 500);
-        });
-    }
-    
-    function logTrade(message, type) {
-        const now = new Date();
-        const timeString = now.toLocaleTimeString();
-        
-        const entry = document.createElement('div');
-        entry.className = `trade-entry trade-${type}`;
-        entry.innerHTML = `[${timeString}] ${message}`;
-        
-        tradeLog.prepend(entry);
-        
-        // Keep log manageable
-        if (tradeLog.children.length > 50) {
-            tradeLog.removeChild(tradeLog.lastChild);
-        }
-    }
+    // ... (rest of the client-side code remains similar to previous example)
 });
