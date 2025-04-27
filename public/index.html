@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Infinity Grid Trading Bot</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Infinity Grid Trading Bot</h1>
+        
+        <div class="config-section">
+            <div class="form-group">
+                <label for="apiKey">API Key:</label>
+                <input type="password" id="apiKey" placeholder="Enter your exchange API key">
+            </div>
+            
+            <div class="form-group">
+                <label for="apiSecret">API Secret:</label>
+                <input type="password" id="apiSecret" placeholder="Enter your exchange API secret">
+            </div>
+            
+            <div class="form-group">
+                <label for="baseCurrency">Base Currency:</label>
+                <select id="baseCurrency">
+                    <option value="USDT">USDT</option>
+                    <option value="BTC">BTC</option>
+                    <option value="ETH">ETH</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="pairCurrency">Pair Currency:</label>
+                <select id="pairCurrency">
+                    <option value="BTC">BTC</option>
+                    <option value="ETH">ETH</option>
+                    <option value="SOL">SOL</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="gridLevels">Grid Levels:</label>
+                <input type="number" id="gridLevels" min="3" max="100" value="10">
+            </div>
+            
+            <div class="form-group">
+                <label for="lowerPrice">Lower Price:</label>
+                <input type="number" id="lowerPrice" step="0.00000001" placeholder="Lower grid bound">
+            </div>
+            
+            <div class="form-group">
+                <label for="upperPrice">Upper Price:</label>
+                <input type="number" id="upperPrice" step="0.00000001" placeholder="Upper grid bound">
+            </div>
+            
+            <div class="form-group">
+                <label for="investment">Investment Amount:</label>
+                <input type="number" id="investment" step="0.01" placeholder="Amount to invest">
+            </div>
+            
+            <button id="startBot">Start Bot</button>
+            <button id="stopBot" disabled>Stop Bot</button>
+        </div>
+        
+        <div class="status-section">
+            <h2>Bot Status: <span id="botStatus">Inactive</span></h2>
+            <div class="price-display">
+                Current Price: <span id="currentPrice">-</span>
+            </div>
+            <div class="grid-levels">
+                <h3>Grid Levels</h3>
+                <div id="gridLevelsContainer"></div>
+            </div>
+            <div class="trade-log">
+                <h3>Trade Log</h3>
+                <div id="tradeLog"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="script.js"></script>
+</body>
+</html>
