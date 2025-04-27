@@ -1,40 +1,27 @@
-const ccxt = require('ccxt');
+const bitget = require('../lib/bitget');
+const jwt = require('jsonwebtoken');
+const config = require('./config');
 
 module.exports = async (req, res) => {
-    if (req.method !== 'POST') {
-        return res.status(405).json({ error: 'Method not allowed' });
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  try {
+    // Verify JWT
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) return res.status(401).json({ error: 'Unauthorized' });
+
+    jwt.verify(token, config.JWT_SECRET);
+
+    const { symbol, type, price, amount } = req.body;
+    if (!symbol || !type || !price || !amount) {
+      return res.status(400).json({ error: 'Missing parameters' });
     }
 
-    try {
-        const { apiKey, apiSecret, baseCurrency, pairCurrency, type, price, amount } = req.body;
-        
-        // Initialize exchange (using Binance as example)
-        const exchange = new ccxt.binance({
-            apiKey,
-            secret: apiSecret,
-            enableRateLimit: true
-        });
-
-        const symbol = `${pairCurrency}/${baseCurrency}`;
-        
-        let order;
-        if (type === 'buy') {
-            order = await exchange.createLimitBuyOrder(symbol, amount, price);
-        } else if (type === 'sell') {
-            order = await exchange.createLimitSellOrder(symbol, amount, price);
-        } else {
-            return res.status(400).json({ error: 'Invalid trade type' });
-        }
-
-        return res.status(200).json({
-            success: true,
-            order
-        });
-    } catch (error) {
-        console.error('Trade error:', error);
-        return res.status(500).json({ 
-            success: false,
-            error: error.message
-        });
-    }
+    const order = await bitget.createGridOrder(symbol, type, price, amount);
+    res.status(200).json({ success: true, order });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 };
