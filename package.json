@@ -1,0 +1,14 @@
+{
+  "name": "infinity-grid-bot",
+  "version": "1.0.0",
+  "description": "Serverless Infinity Grid Trading Bot for Vercel",
+  "scripts": {
+    "start": "serve public"
+  },
+  "dependencies": {
+    "ccxt": "^1.89.0"
+  },
+  "devDependencies": {
+    "serve": "^14.0.1"
+  }
+}
